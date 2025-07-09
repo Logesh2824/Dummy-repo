@@ -1,0 +1,63 @@
+FROM ubuntu:22.04
+
+# Install runtime dependencies
+RUN apt-get update && apt-get install -y \
+    libstdc++6 libgcc-s1 ca-certificates curl openssl tzdata net-tools && \
+    rm -rf /var/lib/apt/lists/*
+
+# Create required directories
+RUN mkdir -p /etc/nms /etc/nginx /var/log/nms /etc/ssl/nginx \
+    /var/cache/nginx/client_temp /var/log/nginx \
+    /usr/share/nms/clickhouse/migrations /var/www/nms
+
+# Set ownership for nginx cache/log
+RUN chown -R www-data:www-data /var/cache/nginx /var/log/nginx
+
+# Copy NGINX configuration
+COPY nginx/ /etc/nginx/
+COPY ssl-nginx/ /etc/ssl/nginx/
+COPY ./var/run/nms/ /var/run/nms/
+COPY share/nms/ /usr/share/nms/
+# Copy NIM configuration and scripts
+COPY nms/ /etc/nms/
+
+# Copy Web UI files
+COPY /var/www/nms/ /var/www/nms/
+
+# Copy ClickHouse migration SQLs
+COPY share/nms/clickhouse/migrations/ /usr/share/nms/clickhouse/migrations/
+
+
+COPY nms/dpm/schema.sql /etc/nms/dpm/schema.sql
+COPY nms/integrations/schema.sql /etc/nms/integrations/schema.sql
+COPY nms/integrations/license/schema.sql /etc/nms/integrations/license/schema.sql
+COPY certs/*.pem /etc/nms/certs/
+COPY nms-sm-conf.yaml /etc/nms/
+
+# Copy NIM binaries
+COPY nms-binaries/nms-core /usr/bin/nms-core
+COPY nms-binaries/nms-sm /usr/bin/nms-sm
+COPY nms-binaries/nms-dpm /usr/bin/nms-dpm
+COPY nms-binaries/nms-ingestion /usr/bin/nms-ingestion
+COPY nms-binaries/nms-integrations /usr/bin/nms-integrations
+
+# Copy NGINX binary
+COPY nms-binaries/nginx /usr/sbin/nginx
+
+# Copy ClickHouse binaries
+COPY clickhouse-binaries/clickhouse-server /usr/bin/clickhouse-server
+COPY clickhouse-binaries/clickhouse-client /usr/bin/clickhouse-client
+
+# Optional: Copy service files (for reference only, not used in container runtime)
+COPY systemd/ /usr/lib/systemd/system/
+
+# Copy startup script
+COPY start.sh /start.sh
+RUN chmod +x /start.sh
+
+# Expose ports for HTTP and HTTPS
+EXPOSE 80 443
+
+# Start script to run all services (NGINX, NIM components, ClickHouse, etc.)
+CMD ["/start.sh"]
+
